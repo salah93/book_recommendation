@@ -1,38 +1,29 @@
-import random
-import re
+import os
 import requests
-from bs4 import BeautifulSoup
-
-
-class GoogleResultException(Exception):
-    pass
-
-
-def is_book(tag):
-    return len(tag.contents) >= 1 and tag.contents[0].name == 'strong'
-
-
-def main(url):
-    r = requests.get(url)
-    if r.status_code >= 400:
-        raise requests.HTTPError
-    soup = BeautifulSoup(r.content, 'html.parser')
-    site = soup.find(href=re.compile('nytimes')).get('href', '')
-    pattern = re.compile(r'.*(https?://.+)&.*')
-    match = pattern.match(site)
-    href = match.groups(1)[0] if match else None
-    if not href:
-        raise GoogleResultException
-    r = requests.get(href)
-    if r.status_code >= 400:
-        raise requests.HTTPError
-    soup = BeautifulSoup(r.content, 'html.parser')
-    books = [l.text for l in soup.find_all(is_book)]
-    return (books, r.url)
+from argparse import ArgumentParser
 
 
 if __name__ == '__main__':
-    url = 'https://www.google.com/search?q=books+we+recommend+this+week'
-    books, url = main(url)
-    print url
-    print random.choice(books)
+    parser = ArgumentParser()
+    parser.add_argument('--genre', default='pnf', choices=['hf', 'hnf', 'pnf'])
+    args = parser.parse_args()
+    options = {
+                'hf': 'hardcover-fiction',
+                'hnf': 'hardcover-nonfiction',
+                'pnf': 'paperback-nonfiction',
+              }
+    genre = options[args.genre]
+    url = 'https://api.nytimes.com/svc/books/v3/lists.json'
+    params = {'api-key': os.env['NYTIMES_BOOKS'], 
+              'list': genre,
+             }
+    books = requests.get(url, params=params).json()['results']
+    for b in books:
+        print('-' * 10)
+        link = b['amazon_product_url']
+        details = b['book_details'][0] 
+        title = details['title']
+        description = details['description']
+        print(title)
+        print(link)
+        print(description)
